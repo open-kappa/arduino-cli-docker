@@ -11,7 +11,7 @@ RUN apk update \
     && apk add curl git gcc musl-dev libc6-compat \
     && go install github.com/go-task/task/v3/cmd/task@v3.17.0 \
     && cd /tmp || exit 1 \
-    && curl -L -o arduino-cli.tgz https://github.com/arduino/arduino-cli/archive/refs/tags/v$CLI_TAG.tar.gz \
+    && curl -L -o arduino-cli.tgz https://github.com/arduino/arduino-cli/archive/refs/tags/$CLI_TAG.tar.gz \
     && tar xzf arduino-cli.tgz \
     && cd arduino-cli-$CLI_TAG || exit 1 \
     && task build \

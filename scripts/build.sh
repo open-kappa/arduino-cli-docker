@@ -16,8 +16,8 @@ LIB_TAG="$4"
 
 cd "$THIS_DIR/.." || exit 1
 
-ENV_CLI_TAG=$(git describe --tags --abbrev=0 2>/dev/null | sed -e 's/[0-9.]*-lib//g')
-ENV_LIB_TAG=$(git describe --tags --abbrev=0 2>/dev/null | sed -e 's/^\([0-9.]*\)-.*/\1/g')
+ENV_CLI_TAG=$(git describe --tags --abbrev=0 2>/dev/null | sed -e 's/^\([0-9\.]*\)-.*/\1/g')
+ENV_LIB_TAG=$(git describe --tags --abbrev=0 2>/dev/null | sed -e 's/[0-9\.]*-lib//g')
 
 if [ "$COMMAND" == "" ]; then
     echo "Missing cli argument: COMMAND" >&2
