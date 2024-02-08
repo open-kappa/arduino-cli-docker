@@ -1,0 +1,63 @@
+# ##############################################################################
+# Dockerfile for Arduino CLI on Debian
+# ##############################################################################
+
+FROM debian:12.4-slim
+
+ARG CLI_TAG
+ENV CLI_TAG=$CLI_TAG
+
+RUN apt-get update \
+    && apt-get install -y make cmake git vim python3 python3-serial neofetch bsdextrautils \
+    && update-alternatives --install /usr/bin/python python /usr/bin/python3 300
+
+RUN cd /usr/bin \
+    && apt-get install -y curl \
+    && curl -L -o arduino-cli.tgz https://github.com/arduino/arduino-cli/releases/download/v$CLI_TAG/arduino-cli_$CLI_TAG_Linux_64bit.tar.gz \
+    && apt-get purge -y curl \
+    && tar xzf arduino-cli.tgz \
+    && rm arduino-cli.tgz
+
+RUN arduino-cli completion bash > /etc/profile.d/arduino-cli.sh \
+    && addgroup --gid 1000 "arudino" \
+    && adduser \
+        --disabled-password \
+        --gecos "arduino" \
+        --shell /bin/bash \
+        --home /home/arduino \
+        --uid 1000 \
+        --gid 1000 \
+        arduino \
+    && usermod -a -G dialout arduino
+
+RUN printf '%s\n' 'PS1='"'"'\[\033[1;35m\]${debian_chroot:+($debian_chroot)}\[\033[00;31m\]\u\[\033[00m\]@\[\033[00;31m\]\H\[\033[00m\]:\[\033[00;33m\]\w\[\033[00m\]\[\033[00;34m\]$(git -c safe.directory=* branch 2>/dev/null | fgrep "*" | colrm 1 2 | sed "s/\(.*\)/ (\1)/g")\[\033[00m\]\$ '"'" >> /root/.bashrc \
+    && echo 'echo ""'  >> /root/.bashrc \
+    && echo 'echo ""'  >> /root/.bashrc \
+    && echo 'neofetch' >> /root/.bashrc
+
+COPY ./scripts/entrypoint.sh /usr/bin
+COPY ./config_files/config_root_debian.conf /root/.config/neofetch/config.conf
+
+# ##############################################################################
+
+USER arduino
+WORKDIR /home/arduino
+
+RUN git config --global user.email "myserver@ci_cd.org" \
+    && git config --global user.name "myserver CI/CD" \
+    && git config --global pull.ff only
+
+RUN printf '%s\n' 'PS1='"'"'\[\033[1;35m\]${debian_chroot:+($debian_chroot)}\[\033[00;36m\]\u\[\033[00m\]@\[\033[00;36m\]\H\[\033[00m\]:\[\033[00;35m\]\w\[\033[00m\]\[\033[00;34m\]$(git -c safe.directory=* branch 2>/dev/null | fgrep "*" | colrm 1 2 | sed "s/\(.*\)/ (\1)/g")\[\033[00m\]\$ '"'" >> /home/arduino/.bashrc \
+    && echo 'echo ""'  >> /home/arduino/.bashrc \
+    && echo 'echo ""'  >> /home/arduino/.bashrc \
+    && echo 'neofetch' >> /home/arduino/.bashrc
+
+RUN arduino-cli config init \
+    && arduino-cli config set library.enable_unsafe_install true
+
+COPY ./config_files/config_debian.conf /home/arduino/.config/neofetch/config.conf
+
+EXPOSE 1880
+
+ENTRYPOINT [ "entrypoint.sh" ]
+CMD [ "daemon", "--daemonize", "--port", "1880" ]

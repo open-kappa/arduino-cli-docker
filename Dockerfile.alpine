@@ -1,0 +1,71 @@
+# ##############################################################################
+# Dockerfile for Arduino CLI on Alpine
+# ##############################################################################
+
+FROM golang:1.21.6-alpine3.19 as build
+
+ARG CLI_TAG
+ENV CLI_TAG=$CLI_TAG
+
+RUN apk update \
+    && apk add curl git gcc musl-dev libc6-compat \
+    && go install github.com/go-task/task/v3/cmd/task@v3.17.0 \
+    && cd /tmp || exit 1 \
+    && curl -L -o arduino-cli.tgz https://github.com/arduino/arduino-cli/archive/refs/tags/v$CLI_TAG.tar.gz \
+    && tar xzf arduino-cli.tgz \
+    && cd arduino-cli-$CLI_TAG || exit 1 \
+    && task build \
+    && mv arduino-cli /tmp
+
+    #&& task go:test
+
+# ##############################################################################
+
+FROM alpine:3.19.0
+
+RUN apk update \
+    && apk add bash-completion make cmake git vim python3 py3-pyserial gcompat neofetch util-linux-misc
+
+COPY --from=build /tmp/arduino-cli /usr/bin/arduino-cli
+
+RUN arduino-cli completion bash > /etc/profile.d/arduino-cli.sh \
+    && adduser \
+        --disabled-password \
+        --gecos "arduino" \
+        --shell /bin/bash \
+        --home /home/arduino \
+        --uid 1000 \
+        arduino \
+    && addgroup arduino dialout
+
+RUN printf '%s\n' 'PS1='"'"'\[\033[1;35m\]${debian_chroot:+($debian_chroot)}\[\033[00;31m\]\u\[\033[00m\]@\[\033[00;31m\]\H\[\033[00m\]:\[\033[00;33m\]\w\[\033[00m\]\[\033[00;34m\]$(git -c safe.directory=* branch 2>/dev/null | fgrep "*" | colrm 1 2 | sed "s/\(.*\)/ (\1)/g")\[\033[00m\]\$ '"'" >> /root/.bashrc \
+    && echo 'echo ""'  >> /root/.bashrc \
+    && echo 'echo ""'  >> /root/.bashrc \
+    && echo 'neofetch' >> /root/.bashrc
+
+COPY ./scripts/entrypoint.sh /usr/bin
+COPY ./config_files/config_root_alpine.conf /root/.config/neofetch/config.conf
+
+# ##############################################################################
+
+USER arduino
+WORKDIR /home/arduino
+
+RUN git config --global user.email "myserver@ci_cd.org" \
+    && git config --global user.name "myserver CI/CD" \
+    && git config --global pull.ff only
+
+RUN printf '%s\n' 'PS1='"'"'\[\033[1;35m\]${debian_chroot:+($debian_chroot)}\[\033[00;34m\]\u\[\033[00m\]@\[\033[00;34m\]\H\[\033[00m\]:\[\033[00;35m\]\w\[\033[00m\]\[\033[00;36m\]$(git -c safe.directory=* branch 2>/dev/null | fgrep "*" | colrm 1 2 | sed "s/\(.*\)/ (\1)/g")\[\033[00m\]\$ '"'" >> /home/arduino/.bashrc \
+    && echo 'echo ""'  >> /home/arduino/.bashrc \
+    && echo 'echo ""'  >> /home/arduino/.bashrc \
+    && echo 'neofetch' >> /home/arduino/.bashrc
+
+RUN arduino-cli config init \
+    && arduino-cli config set library.enable_unsafe_install true
+
+COPY ./config_files/config_alpine.conf /home/arduino/.config/neofetch/config.conf
+
+EXPOSE 1880
+
+ENTRYPOINT [ "entrypoint.sh" ]
+CMD [ "daemon", "--daemonize", "--port", "1880" ]
